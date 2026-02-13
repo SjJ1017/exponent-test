@@ -3,6 +3,12 @@ import hashlib
 import random
 from typing import Literal
 
+# hash() is still random
+def get_stable_seed(text):
+    """stable hash seed to ensure the same result"""
+    hash_obj = hashlib.md5(text.encode('utf-8'))
+    return int(hash_obj.hexdigest(), 16) % (2**32)
+
 def llm(
     prompt: str, 
     error: Literal["raise", "random", "fixed"] = "raise"
@@ -26,8 +32,7 @@ def llm(
             f"This is a fallback response {i}." for i in range(50)
         ]
 
-        prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        seed = int(prompt_hash, 16) % (2**32)
+        seed = get_stable_seed(prompt)
         
         rng = random.Random(seed)
         selected_response = rng.choice(response_pool)
@@ -59,6 +64,7 @@ def llm(
         return content
     
     except Exception as e:
+        # standard-library fallback implementation
         if error == "raise":
             return f"Error: {type(e).__name__}: {str(e)}"
         else:

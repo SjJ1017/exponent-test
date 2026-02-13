@@ -1,37 +1,28 @@
 from typing import List
-from llm import llm, get_stable_seed
 import re
-from collections import Counter
-import string
 import random
+from llm import llm, get_stable_seed
 
-
-def vectorize_string_normalized(text):
-    text = text.lower()
-    counter = Counter(c for c in text if c.isalnum())
-    chars = string.ascii_lowercase + string.digits
-    
-    vector = [counter.get(c, 0) for c in chars]
-    total = sum(vector)
-    
-    if total > 0:
-        vector = [v / total for v in vector]
-    
-    return vector
+# Notes:
+# 1. Uses in-memory vector s/torage with a mock vectorizer based on a stable random seed.
+# 2. Uses OpenAI for the LLM, and prefers scikit-learn + numpy for cosine similarity. 
+#    - The openai api should be set as environment variable $OPENAI_API_KEY
+# 3. with a standard-library fallback implementation if those dependencies are missing.
 
 class SimpleRAG:
     def __init__(self):
         """
         Initialize your Vector Store (in-memory or simple DB) here.
         """
-        self.vector_store = []
+        self.vector_store: list[list[int]] = []
 
-        self.texts = []
-        self.chunk_size = 2
-        self.overlap = 1 # overlap sentences for better coherence
-        self.embedding_size = 64
-        self.verbose = True
-        pass
+        self.texts: list[str] = []
+        self.chunk_size: int = 2
+        self.overlap: int = 1 # overlap sentences for better coherence
+        if self.chunk_size <= self.overlap:
+            raise ValueError('overlap must be smaller than chunk_size')
+        self.embedding_size: int = 64
+        self.verbose: bool = True
 
     def ingest(self, text_content: str) -> None:
         """
@@ -50,12 +41,15 @@ class SimpleRAG:
         
 
         # 2. Vectorize (mock using letter counts)
+        vectors = []
         for chunk in chunks:
             seed = get_stable_seed(chunk)
             random.seed(seed)
             vector = [random.randint(0, 10) for _ in range(self.embedding_size)]
-            self.vector_store.append(vector)
-
+            vectors.append(vector)
+        
+        
+        self.vector_store.extend(vectors)
         self.texts.extend(chunks)
 
 
@@ -64,6 +58,8 @@ class SimpleRAG:
         Retrieve the top-k most relevant chunks for the given query.
         (Use cosine similarity or a keyword search if no embeddings available).
         """
+        if not self.vector_store:
+            return []
         
         # vectorize query (mock)
         seed = get_stable_seed(query)
@@ -76,6 +72,8 @@ class SimpleRAG:
             similarities = cosine_similarity(np.array(q_vector).reshape(1, -1), np.array(self.vector_store))[0]
             top_indices = np.argsort(similarities)[-k:][::-1]
         except:
+            # standard-library fallback implementation
+            print('Cannot import numpy or sklearn, using fallback implementation')
             similarities = []
             q_norm = sum([x * x for x in q_vector]) ** 0.5
             for k_vector in self.vector_store:
@@ -111,7 +109,8 @@ class SimpleRAG:
         prompt = f"Context:\n{context}\nQuestion: {query}"
         if self.verbose:
             print(f"Prompt:\n{prompt}\n\n\n")
-        return llm(prompt)
+        return llm(prompt, error='random')
+
 
 # --- Test Execution ---
 if __name__ == "__main__":
