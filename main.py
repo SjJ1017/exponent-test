@@ -103,6 +103,8 @@ class SimpleRAG:
         # prompt = f"Context: {context}\nQuestion: {query}"
         # return llm_call(prompt)
         context_list = self.retrieve(query)
+        
+        # add (index) before each document for readability
         context = "\n".join(
             [f"({i + 1}): {cxt}" for i, cxt in enumerate(context_list)]
         )
